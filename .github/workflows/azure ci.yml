@@ -1,0 +1,45 @@
+name: Java CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Cache Maven Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Set Java Memory Limits
+        run: echo "MAVEN_OPTS=-Xmx1024m -XX:MaxPermSize=512m" >> $GITHUB_ENV
+
+      - name: Upgrade Maven Surefire Plugin (Fixes Fork Issue)
+        run: |
+          sed -i '/<artifactId>maven-surefire-plugin<\/artifactId>/{n;s|<version>.*</version>|<version>3.1.2</version>|}' pom.xml
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Run Tests (Fix Fork Issue)
+        run: mvn test -Dsurefire.forkCount=0 -DforkMode=never -X
